@@ -1,0 +1,108 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum BorrowStatus {
+  PENDING    // Request menunggu persetujuan
+  APPROVED   // Disetujui, sedang dipinjam
+  RETURNED   // Sudah dikembalikan
+  REJECTED   // Ditolak
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  password      String
+  role          UserRole @default(USER)
+  profileImage  String?  // Foto profil user
+  bio           String?  // Bio singkat user
+  location      String?  // Lokasi user
+  socialMedia   String?  // JSON string untuk tautan social media (Instagram, Twitter, Facebook, dll)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  borrows Borrow[]           // Buku yang dipinjam user ini
+  lenderBorrows Borrow[] @relation("LenderBorrows")  // Buku yang dipinjamkan user ini
+  userBooks UserBook[]       // Koleksi buku user ini
+
+  @@map("users")
+}
+
+model Book {
+  id          String   @id @default(cuid())
+  title       String
+  author      String
+  isbn        String?  @unique
+  description String?
+  coverImage  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userBooks UserBook[]  // Semua copy buku ini dari berbagai user
+  borrows Borrow[]      // Riwayat peminjaman
+
+  @@map("books")
+}
+
+model UserBook {
+  id          String   @id @default(cuid())
+  userId      String
+  bookId      String
+  isAvailable Boolean  @default(true)
+  location    String?  // Kota/Area
+  condition   String?  // Kondisi buku
+  coverImage  String?  // Foto buku milik user ini
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  borrows Borrow[]  // Peminjaman untuk buku copy ini
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@index([isAvailable])
+  @@index([location])
+  @@map("user_books")
+}
+
+model Borrow {
+  id            String       @id @default(cuid())
+  userId        String       // Yang meminjam
+  bookId        String       // Buku yang dipinjam
+  userBookId    String       // Copy spesifik yang dipinjam
+  lenderId      String       // Yang meminjamkan
+  status        BorrowStatus @default(PENDING)
+  borrowDate    DateTime?
+  dueDate       DateTime?
+  returnDate    DateTime?
+  requestDate   DateTime     @default(now())
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  lender User @relation("LenderBorrows", fields: [lenderId], references: [id], onDelete: Cascade)
+  userBook UserBook @relation(fields: [userBookId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([bookId])
+  @@index([lenderId])
+  @@index([status])
+  @@map("borrows")
+}
